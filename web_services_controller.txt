@@ -1,0 +1,207 @@
+using Microsoft.Owin.Security.Provider;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data.SqlClient;
+using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Web.Http;
+using Teigha.Geometry;
+using static System.Data.Entity.Infrastructure.Design.Executor;
+
+namespace Samet.Controllers
+{
+    public class raporController : ApiController
+    {
+        private SametEntities db = new SametEntities();
+
+        public class usersRegisterListCount
+        {
+            public int kullanıcıSayısı { get; set; }
+            public string zaman { get; set; }
+        }
+        public string[] ay = new string[] { "", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık" };
+
+        [HttpGet]
+        [Route("api/dbUsersChart")]
+        public List<usersRegisterListCount> GetUserRegisterCount()
+        {
+
+            List<usersRegisterListCount> userRegisterCount = new List<usersRegisterListCount>();
+            SametEntities db = new SametEntities();
+
+            SqlConnection con = new SqlConnection(db.Database.Connection.ConnectionString);
+            con.Open();
+
+            SqlCommand cmd = con.CreateCommand();
+            cmd.Connection = con;
+            cmd.CommandText = "SELECT MONTH(registerDate) as monthName, COUNT(*) as userCount  from dbusers where registerDate > dateadd(YYYY,-1,getdate()) and dbo.dbUsers.active = 1 GROUP BY MONTH(registerDate)";
+            SqlDataReader dr = cmd.ExecuteReader();
+            while (dr.Read())
+            {
+
+                userRegisterCount.Add(new usersRegisterListCount
+                {
+                    kullanıcıSayısı = Convert.ToInt32(dr["userCount"].ToString()),
+                    zaman = ay[Convert.ToInt32(dr["monthName"].ToString())],
+                });
+            }
+            return userRegisterCount.ToList();
+        }
+
+
+        public class userReport
+        {
+            public string name { get; set; }
+            public string email { get; set; }
+            public string companyName { get; set; }
+            public string phoneNumber { get; set; }
+            public string countryName { get; set; }
+
+            public int idCompanyProfile { get; set; }
+            public string registerDate { get; set; }
+
+        }
+        [HttpGet]
+        [Route("api/dbUsersDetail")]
+        public List<userReport> GetUserReport()
+        {
+            List<userReport> result = db.dbUsers.Where(x => x.active == true).ToList().Select(x => new userReport { name = x.name, email = x.email, companyName = x.companyName, phoneNumber = x.phoneNumber, countryName = x.countryName, idCompanyProfile=x.idcompanyProfile , registerDate = x.registerDate.ToString("dd-MM-yyyy")  }).ToList();
+            return result;
+        }
+
+
+        public class userReportDateRange
+        {
+            public string name { get; set; }
+            public string email { get; set; }
+            public string companyName { get; set; }
+            public string phoneNumber { get; set; }
+            public string countryName { get; set; }
+
+            public int idCompanyProfile { get; set; }
+            public string registerDate { get; set; }
+            
+
+        }
+        [HttpGet]
+        [Route("api/dbUsers3")]
+        
+
+
+        public List<userReportDateRange> GetReport(string startDate, string endDate)
+        {
+            DateTime sDate = DateTime.ParseExact(startDate,
+                        "MM-dd-yyyy", CultureInfo.InvariantCulture);
+            DateTime eDate = DateTime.ParseExact(endDate,
+                       "MM-dd-yyyy", CultureInfo.InvariantCulture);
+
+
+            List<userReportDateRange> userReports = db.dbUsers.Where(x => x.deleted != true && x.registerDate > sDate && x.registerDate < eDate && x.active==true).ToList().Select(x => new userReportDateRange
+            {
+                name = x.name,
+                email = x.email,
+                companyName = x.companyName,
+                phoneNumber = x.phoneNumber,
+                countryName = x.countryName,
+                registerDate = x.registerDate.ToString("dd-MM-yyyy"),
+               idCompanyProfile = x.idcompanyProfile
+            }).ToList();
+
+            return userReports;
+        }
+
+        public class productCountReport
+        {
+            public int monthName { get; set; }
+            public int projectCount { get; set; }
+            public string dateTime { get; set; }
+        }
+        [HttpGet]
+        [Route("api/dbCabinets")]
+        public List<productCountReport> getProductCount()
+        {
+           DateTime oneYearsAgo=  DateTime.Now.AddYears(-1);
+            List<productCountReport> productCount = db.dbCabinets.Where(x => x.datetime >= oneYearsAgo && x.datetime<=DateTime.Now).GroupBy(x=>x.datetime.Month).Select(x => new productCountReport
+            {
+                monthName = x.Key,
+                projectCount =x.Count() ,
+                
+            }).ToList(); ;
+            //SELECT MONTH(datetime) as monthName, COUNT(*) as projectCount  from dbCabinets where datetime > dateadd(YYYY,-1,getdate()) group by MONTH(datetime)
+            return productCount;
+        }
+
+        public class productCountCabinetsReport
+        {
+            public int count { get; set; }
+
+            public string name { get; set; }
+            public string email { get; set; }
+        }
+
+        //[HttpGet]
+        //[Route("api/dbCabinetsCount")]
+        //public List<productCountCabinetsReport> getProductCountCabinets()
+        //{
+        //    List<productCountCabinetsReport> productCountCabinets = new List<productCountCabinetsReport>();
+        //    SametEntities db = new SametEntities();
+
+        //    SqlConnection con = new SqlConnection(db.Database.Connection.ConnectionString);
+        //    con.Open();
+
+        //    SqlCommand cmd = con.CreateCommand();
+        //    cmd.Connection = con;
+        //    cmd.CommandText = "SELECT COUNT(dbo.dbCabinets.idCabinet) AS 'count', dbo.dbUsers.name, dbo.dbUsers.email FROM dbo.dbCabinets INNER JOIN dbo.dbProjects ON dbo.dbCabinets.idProject = dbo.dbProjects.idProject INNER JOIN dbo.dbUsers ON dbo.dbProjects.idUser = dbo.dbUsers.idUser WHERE (dbo.dbCabinets.deleted = 0) AND (dbo.dbCabinets.datetime > DATEADD(YYYY, - 1, GETDATE())) GROUP BY dbo.dbProjects.idUser, dbo.dbUsers.name, dbo.dbUsers.email";
+        //    SqlDataReader dr = cmd.ExecuteReader();
+        //    while (dr.Read())
+        //    {
+
+        //        productCountCabinets.Add(new productCountCabinetsReport
+        //        {
+        //            name = (dr["name"].ToString()),
+        //            count = Convert.ToInt32(dr["count"].ToString()),
+        //            email= (dr["email"].ToString()),
+        //        });
+        //    }
+        //    return productCountCabinets.ToList();
+        //}
+
+
+
+        public class productCountCabinetsReportDateRangeReport
+        {
+            public int count { get; set; }
+
+            public string name { get; set; }
+            public string email { get; set; }
+        }
+
+
+
+        [HttpGet]
+        [Route("api/dbCabinetsCountDateRange")]
+        public List<productCountCabinetsReportDateRangeReport> getProductCountCabinets2(string startDate, string endDate)
+        {
+
+            DateTime sDate = DateTime.ParseExact(startDate,
+                        "MM-dd-yyyy", CultureInfo.InvariantCulture);
+            DateTime eDate = DateTime.ParseExact(endDate,
+                       "MM-dd-yyyy", CultureInfo.InvariantCulture);
+
+            List<productCountCabinetsReportDateRangeReport> productCountCabinetsDateRange = (from cab in db.dbCabinets join pro in db.dbProjects on cab.idProject
+                                                                                             equals pro.idProject join user in db.dbUsers on pro.idUser
+                                                                                             equals user.idUser where user.deleted != true && cab.datetime > sDate && cab.datetime < eDate
+                                                                                             group user by new { pro.idUser, user.name, user.email }  into g select new {count=g.Count(),g=g})
+                                                                    .Select(x=> new productCountCabinetsReportDateRangeReport { count=x.count,email=x.g.Key.email,name=x.g.Key.name}).ToList();
+           
+
+            return productCountCabinetsDateRange;
+
+        }
+
+
+    }
+}

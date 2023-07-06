@@ -1,0 +1,379 @@
+var allUserData = [];
+var months = [
+    { id: 1, text: "Ocak" },
+    { id: 2, text: "Şubat" },
+    { id: 3, text: "Mart" },
+    { id: 4, text: "Nisan" },
+    { id: 5, text: "Mayıs" },
+    { id: 6, text: "Haziran" },
+    { id: 7, text: "Temmuz" },
+    { id: 8, text: "Ağustos" },
+    { id: 9, text: "Eylül" },
+    { id: 10, text: "Ekim" },
+    { id: 11, text: "Kasım" },
+    { id: 12, text: "Aralık" },
+  ];
+  var productChartCanvas=null;
+
+function productReportInit() {
+
+  allData = [];
+  var prdiv = mainContent;
+  prdiv.innerHTML = "";
+  var pagecontainer = bcContainerFluid(prdiv, 12);
+  var pagenamediv = wDiv({
+    parent: pagecontainer,
+    id: "pagenamediv",
+    class: "pagenamedivcss",
+    text: "Ürünler Raporu",
+  });
+
+  var c12 = bcContainerFluid(prdiv, 12);
+  var row = wDiv({ parent: c12, class: "row" });
+  var c6 = wDiv({ parent: row, class: "col-md-12" });
+  var card = bcCard(c6, "Ürünler Raporu");
+  card.body.setAttribute("class", "card-body");
+  card.body.setAttribute("id", "reportProductChart");
+
+  var col2 = bcContainerFluid(prdiv, 12);
+  var row = wDiv({ parent: col2, class: "row" });
+  var col6_2 = wDiv({ parent: row, class: "col-md-12" });
+  var card2 = bcCard(col6_2, "Kullanıcılara göre Proje Sayısı");
+  card2.body.setAttribute("class", "card-body card-body2");
+  card2.body.setAttribute("id", "prdProductGrid");
+
+  
+  productChartCanvas = document.createElement("canvas");
+  productChartCanvas.setAttribute("id", "productChartCanvas");
+  productChartCanvas.setAttribute("class", "col col-12 ");
+  $(card.body).html(productChartCanvas);
+
+
+wButton({
+    parent: card2.header,
+    id: "excelbtn",
+    text: "Excel",
+    class: "btn excel-btn btn-outline-success btn-sm ml-2 float-right",
+    onclick: "productGridExcel()",
+  });
+  $("#excelbtn").append('<i class="far fa-save ml-1"></i>');
+
+  var datePicker = wSpan({
+    parent: card2.header,
+    class: "btn btn-outline-secondary btn-sm float-right mr-10",
+    id: "datePicker",
+  });
+  datePicker.innerHTML = '<i class="far fa-calendar-alt"></i>';
+  $("#datePicker").daterangepicker(
+    {
+      opens: "center",
+      linkedCalendars: false,
+      locale: {
+        format: "M/DD hh:mm A",
+      },
+    },
+    function (start, end) {
+      // lastStartDate = start.format("YYYY-MM-DD");
+      // lastEndDate = end.format("YYYY-MM-DD");
+      lastStartDate = start.format("MM-DD-YYYY");
+      lastEndDate = end.format("MM-DD-YYYY");
+
+      $("#clrDate").html(
+        '<i class="fa fa-trash-alt"> ' +
+          lastStartDate +
+          " / " +
+          lastEndDate +
+          "</i>"
+      );
+      $("#clrDate").removeClass("hidden");
+      productGrid(lastStartDate, lastEndDate);
+    }
+  );
+
+  
+  wButton({
+    parent: card2.header,
+    id: "clrDate",
+    text: "xxxx",
+    class: "btn excel-btn btn-outline-danger hidden btn-sm mr-2 float-right",
+    onclick: "clearProductDate()",
+  });
+  $("#clrDate").html('<i class="fa fa-trash-alt"></i>');
+
+
+  // date filter clear button red hidden button, its will shows after datepicter apply function
+ 
+
+
+  productChart();
+
+  let end=moment(new Date());
+  let start=moment(new Date())
+  
+  start = start.year(start.year()-1);
+  
+ start = start.format("MM-DD-YYYY")
+ end= end.format("MM-DD-YYYY")
+
+  productGrid(start,end);
+}
+
+function productChart(){
+    $.ajax({
+        async: false,
+        type: "GET",
+        headers: dbHeader,
+        url:
+          apiURL + 'dbCabinets',
+        dataType: "JSON",
+        success: function (result) {
+          
+          let thisMonth =  new Date().getMonth()+1;
+          let firstHalfMonths = months.filter(x=>x.id <= thisMonth).reverse()
+          let secondHalfMonths = months.filter(x=>x.id > thisMonth).reverse()
+          let newMonths=[...firstHalfMonths,...secondHalfMonths].reverse()
+          let countChartData=[]
+          let chartLabels =newMonths.map(month=>{
+              return month.text;
+
+          })
+            newMonths.forEach(month=>{
+                let index =result.findIndex(x=> x.monthName == month.id)
+                if( index >-1){
+                    countChartData.push(result[index].projectCount)
+                }else{
+                    countChartData.push(0)
+                }
+            })
+           
+            let countChart = document.getElementById("productChartCanvas")
+
+            new Chart(countChart, {
+                type: "line",
+                data: {
+                  labels: chartLabels,
+                  datasets: [
+                    {
+                      label: "Son 12 Aylık Proje Sayısı",
+                      data: countChartData,
+                      backgroundColor: "#f95d6a",
+                      borderColor: "#ececec",
+                      pointStrokeColor: "#d00043",
+                      responsive: true,
+                      pointRadius: 7,
+                    },
+                  ],
+                },
+              });
+             
+            
+        
+        },
+      });
+}
+
+function productGrid(start,end) {
+let parent=$("#prdProductGrid")[0]
+parent.innerHTML=""
+  var gridCabinetCount = wDiv({
+    parent: $("#prdProductGrid")[0],
+    class: "cabinetcountlist",
+    id: "cabinetcountGrid",
+  });
+
+  var cabinetsCountController = {
+    loadData: function (filter) {
+      var a = $.ajax({
+        async: false,
+        type: "GET",
+        headers: dbHeader,
+        url:
+          apiURL + `dbCabinetsCountDateRange?startDate=${start}&endDate=${end}`,
+        dataType: "JSON",
+        success: function (result) {
+            allUserData = result;
+        },
+      });
+      return a;
+    },
+  };
+
+  var cabinetsCountFields = [
+   
+    {
+      name: "name",
+      type: "text",
+      title: "Kullanıcı Adı",
+      visible: true,
+      align: "center",
+    },
+
+    {
+      name: "email",
+      type: "text",
+      title: "Email",
+      visible: true,
+      align: "center",
+    },
+
+     {
+      name: "count",
+      type: "text",
+      title: "Toplam Proje Sayısı",
+      visible: true,
+      align: "center",
+    },
+
+
+    
+
+  ];
+
+  $(gridCabinetCount).jsGrid({
+    width: "100%",
+    height: "100%",
+    filtering: false,
+    sorting: true,
+    autoload: true,
+    editing: false,
+    inserting: false,
+    selecting: true,
+    controller: cabinetsCountController,
+    fields: cabinetsCountFields,
+
+  });
+
+  $(".jsgrid-table").attr("id", "dataTable");
+ 
+}
+
+
+
+
+// function productGridUpdate(start,end) {
+// let parent=$("#prdProductGrid")[0]
+// parent.innerHTML=""
+//   var gridCabinetCount = wDiv({
+//     parent: parent,
+//     class: "cabinetcountlist",
+//     id: "cabinetcountGrid",
+//   });
+//   var cabinetsCountController = {
+//     loadData: function (filter) {
+//       var a = $.ajax({
+//         async: false,
+//         type: "GET",
+//         headers: dbHeader,
+//         url:
+//           apiURL + `dbCabinetsCount?startDate=${start}&endDate=${end}`,
+//         dataType: "JSON",
+//         success: function (result) {
+//             allUserData = result;
+//         },
+//       });
+//       return a;
+//     },
+//   };
+
+//   var cabinetsCountFields =[
+
+//     {
+//       name: "name",
+//       type: "text",
+//       title: "Kullanıcı Adı",
+//       visible: true,
+//       align: "center",
+//     },
+
+//     {
+//       name: "email",
+//       type: "text",
+//       title: "Email",
+//       visible: true,
+//       align: "center",
+//     },
+
+//      {
+//       name: "count",
+//       type: "text",
+//       title: "Email",
+//       visible: true,
+//       align: "center",
+//     },
+
+
+//   ];
+// $(cabinetsCountFields).jsGrid({
+//     width: "100%",
+//     height: "100%",
+//     filtering: false,
+//     sorting: true,
+//     autoload: true,
+//     editing: false,
+//     inserting: false,
+//     selecting: true,
+//     controller: cabinetsCountController,
+//     fields: cabinetsCountFields,
+
+
+//   });
+
+//   $(".jsgrid-table").attr("id", "dataTable");
+//   }
+  
+  function productGridExcel() {
+  // let excelExportData=allUserData.map(item=>{
+  //       let x =  Object.assign({},item)
+  //       x.registerDate = new Date(x.registerDate).toLocaleDateString('tr')
+
+  //       return x
+
+  // })
+ 
+  let Heading = [
+    [
+        "Kullanıcı Adı",
+        "Email",
+        "Toplam Proje Sayısı",
+        
+    ],
+  ];
+  let exportProjectcountData = allUserData.map(x=>{
+    return{
+      name:x.name,
+      email:x.email,
+      count:x.count
+    }
+})
+
+  JsonExcelExport(exportProjectcountData , Heading, "Proje Sayısı Raporu");
+}
+
+function clearProductDate() {
+  lastStartDate = null;
+  lastEndDate = null;
+  
+  let end=moment(new Date());
+  let start=moment(new Date())
+  
+  start = start.year(start.year()-1);
+  
+ start = start.format("MM-DD-YYYY")
+ end= end.format("MM-DD-YYYY")
+ productGrid(start,end);
+ 
+  $("#clrDate").addClass("hidden");
+  $(".cancelBtn").trigger("click");
+}
+
+
+//////////////////////////////////////////////////////////////////////////////
+
+function addSelfProductReport() {
+  bcSideMenuItem(
+    leftMenu,
+    "Projeler Raporu",
+    "fa-sharp fa-solid far fa-box",
+    "productReportInit();"
+  );
+}

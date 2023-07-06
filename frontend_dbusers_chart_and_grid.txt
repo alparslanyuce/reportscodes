@@ -1,0 +1,398 @@
+var allUserData = [];
+var months = [
+    { id: 1, text: "Ocak" },
+    { id: 2, text: "Şubat" },
+    { id: 3, text: "Mart" },
+    { id: 4, text: "Nisan" },
+    { id: 5, text: "Mayıs" },
+    { id: 6, text: "Haziran" },
+    { id: 7, text: "Temmuz" },
+    { id: 8, text: "Ağustos" },
+    { id: 9, text: "Eylül" },
+    { id: 10, text: "Ekim" },
+    { id: 11, text: "Kasım" },
+    { id: 12, text: "Aralık" },
+  ];
+  var usersChartCanvas=null;
+
+function usersReportInit() {
+
+  allData = [];
+  var prdiv = mainContent;
+  prdiv.innerHTML = "";
+  var pagecontainer = bcContainerFluid(prdiv, 12);
+  var pagenamediv = wDiv({
+    parent: pagecontainer,
+    id: "pagenamediv",
+    class: "pagenamedivcss",
+    text: "Kullanıcı Raporu",
+  });
+
+  var c12 = bcContainerFluid(prdiv, 12);
+  var row = wDiv({ parent: c12, class: "row" });
+  var c6 = wDiv({ parent: row, class: "col-md-12" });
+  var card = bcCard(c6, "Kullanıcı Üyelik Raporu");
+  card.body.setAttribute("class", "card-body card-body2");
+  card.body.setAttribute("id", "reportUsersChart");
+
+  var col2 = bcContainerFluid(prdiv, 12);
+  var row = wDiv({ parent: col2, class: "row" });
+  var col6_2 = wDiv({ parent: row, class: "col-md-12" });
+  var card2 = bcCard(col6_2, "Kayıtlı Kullanıcılar");
+  card2.body.setAttribute("class", "card-body card-body2");
+  card2.body.setAttribute("id", "prdUserGrid");
+
+  
+ usersChartCanvas = document.createElement("canvas");
+  usersChartCanvas.setAttribute("id", "usersChartCanvas");
+  usersChartCanvas.setAttribute("class", "col col-12 ");
+  $(card.body).html(usersChartCanvas);
+
+  wButton({
+    parent: card2.header,
+    id: "excelbtn",
+    text: "Excel",
+    class: "btn excel-btn btn-outline-success btn-sm ml-2 float-right",
+    onclick: "userGridExcel()",
+  });
+  $("#excelbtn").append('<i class="far fa-save ml-1"></i>');
+
+  var datePicker = wSpan({
+    parent: card2.header,
+    class: "btn btn-outline-secondary btn-sm float-right mr-10",
+    id: "datePicker",
+  });
+  datePicker.innerHTML = '<i class="far fa-calendar-alt"></i>';
+  $("#datePicker").daterangepicker(
+    {
+      opens: "center",
+      linkedCalendars: false,
+      locale: {
+        format: "M/DD hh:mm A",
+      },
+    },
+    function (start, end) {
+      // lastStartDate = start.format("YYYY-MM-DD");
+      // lastEndDate = end.format("YYYY-MM-DD");
+      lastStartDate = start.format("MM-DD-YYYY");
+      lastEndDate = end.format("MM-DD-YYYY");
+
+      $("#clrDate").html(
+        '<i class="fa fa-trash-alt"> ' +
+          lastStartDate +
+          " / " +
+          lastEndDate +
+          "</i>"
+      );
+      $("#clrDate").removeClass("hidden");
+      usersGridUpdate(lastStartDate, lastEndDate);
+    }
+  );
+
+  
+  wButton({
+    parent: card2.header,
+    id: "clrDate",
+    text: "xxxx",
+    class: "btn excel-btn btn-outline-danger hidden btn-sm mr-2 float-right",
+    onclick: "clearDate()",
+  });
+  $("#clrDate").html('<i class="fa fa-trash-alt"></i>');
+
+
+  // date filter clear button red hidden button, its will shows after datepicter apply function
+  usersChart()
+  usersGrid();
+}
+
+
+function usersChart(){
+    $.ajax({
+        async: false,
+        type: "GET",
+        headers: dbHeader,
+        url:
+          apiURL + 'dbUsersChart',
+        dataType: "JSON",
+        success: function (result) {
+          let thisMonth =  new Date().getMonth()+1;
+          let firstHalfMonths = months.filter(x=>x.id <= thisMonth).reverse()
+          let secondHalfMonths = months.filter(x=>x.id > thisMonth).reverse()
+          let newMonths=[...firstHalfMonths,...secondHalfMonths].reverse()
+          let countChartData=[]
+            let chartLabels =newMonths.map(month=>{
+                return month.text;
+
+            })
+            newMonths.forEach(month=>{
+                let index =result.findIndex(x=> x.zaman == month.text)
+                if( index >-1){
+                    countChartData.push(result[index].kullanıcıSayısı)
+                }else{
+                    countChartData.push(0)
+                }
+            })
+           
+            let countChart = document.getElementById("usersChartCanvas")
+
+            new Chart(countChart, {
+                type: "line",
+                data: {
+                  labels: chartLabels,
+                  datasets: [
+                    {
+                      label: "Son 12 Aylık Kullanıcı Sayısı",
+                      data: countChartData,
+                      backgroundColor: "#f95d6a",
+                      borderColor: "#ececec",
+                      pointStrokeColor: "#d00043",
+                      responsive: true,
+                      pointRadius: 7,
+                    },
+                  ],
+                },
+              });
+            console.log(result)
+        
+        },
+      });
+}
+
+function usersGrid() {
+let parent=$("#prdUserGrid")[0]
+parent.innerHTML=""
+  var gridUsers = wDiv({
+    parent: $("#prdUserGrid")[0],
+    class: "userlist",
+    id: "usersGrid",
+  });
+
+  var productUsageController = {
+    loadData: function (filter) {
+      var a = $.ajax({
+        async: false,
+        type: "GET",
+        headers: dbHeader,
+        url:
+          apiURL + 'dbUsersDetail',
+        dataType: "JSON",
+        success: function (result) {
+            allUserData = result;
+        },
+      });
+      return a;
+    },
+  };
+
+  var productUsageFields = [
+   
+    {
+      name: "name",
+      type: "text",
+      title: "Kullanıcı Adı",
+      visible: true,
+      align: "center",
+    },
+    {
+      name: "email",
+      type: "text",
+      title: "Email",
+      visible: true,
+      align: "center",
+    },
+    {
+        name: "companyName",
+        type: "text",
+        title: "Şirket Adı",
+        visible: true,
+        align: "center",
+      },
+    {
+        name: "phoneNumber",
+        type: "text",
+        title: "Telefon Numarası",
+        visible: true,
+        align: "center",
+      },
+   
+    {
+      name: "countryName",
+      type: "text",
+      title: "Ülke Adı",
+      visible: true,
+      align: "center",
+    },
+    {
+      name: "idCompanyProfile",
+      type: "text",
+      title: "Şirket Profili Id",
+      visible: true,
+      align: "center",
+    },
+
+    {
+      name: "registerDate",
+      type: "text",
+      title: "Üyelik Tarihi",
+      visible: true,
+      align: "center",
+    },
+
+  ];
+
+  $(gridUsers).jsGrid({
+    width: "100%",
+    height: "100%",
+    filtering: false,
+    sorting: true,
+    autoload: true,
+    editing: false,
+    inserting: false,
+    selecting: true,
+    controller: productUsageController,
+    fields: productUsageFields,
+
+  });
+
+  $(".jsgrid-table").attr("id", "dataTable");
+ 
+}
+
+
+function usersGridUpdate(start,end) {
+let parent=$("#prdUserGrid")[0]
+parent.innerHTML=""
+  var gridUsers = wDiv({
+    parent: parent,
+    class: "userlist",
+    id: "usersGrid",
+  });
+
+  var productUsageController = {
+    loadData: function (filter) {
+      var a = $.ajax({
+        async: false,
+        type: "GET",
+        headers: dbHeader,
+        url:
+          apiURL + `dbUsers3?startDate=${start}&endDate=${end}`,
+        dataType: "JSON",
+        success: function (result) {
+            allUserData = result;
+        },
+      });
+      return a;
+    },
+  };
+
+  var productUsageFields = [
+   
+    {
+      name: "name",
+      type: "text",
+      title: "Kullanıcı Adı",
+      visible: true,
+      align: "center",
+    },
+    {
+      name: "email",
+      type: "text",
+      title: "Email",
+      visible: true,
+      align: "center",
+    },
+    {
+        name: "companyName",
+        type: "text",
+        title: "Şirket Adı",
+        visible: true,
+        align: "center",
+      },
+    {
+        name: "phoneNumber",
+        type: "text",
+        title: "Telefon Numarası",
+        visible: true,
+        align: "center",
+      },
+   
+    {
+      name: "countryName",
+      type: "text",
+      title: "Ülke Adı",
+      visible: true,
+      align: "center",
+    },
+
+    
+    {
+      name: "registerDate",
+      type: "text",
+      title: "Üyelik Tarihi",
+      visible: true,
+      align: "center",
+    },
+
+  ];
+
+  $(gridUsers).jsGrid({
+    width: "100%",
+    height: "100%",
+    filtering: false,
+    sorting: true,
+    autoload: true,
+    editing: false,
+    inserting: false,
+    selecting: true,
+    controller: productUsageController,
+    fields: productUsageFields,
+
+  });
+
+  $(".jsgrid-table").attr("id", "dataTable");
+ 
+}
+function userGridExcel() {
+  // let excelExportData=allUserData.map(item=>{
+  //       let x ={}
+  //        Object.assign(x,item)
+  //       x.registerDate = new Date(x.registerDate).toLocaleDateString('tr')
+
+  //       return x
+
+  // })
+ 
+  let Heading = [
+    [
+        "Kullanıcı Adı",
+        "Email",
+        "Şirket Adı",
+        "Telefon Numarası",
+        "Ülke Adı",
+        "Şirket Profili Id",
+        "Üyelik Tarihi"
+    ],
+  ];
+
+  JsonExcelExport(allUserData , Heading, "Kullanıcı_Raporu");
+}
+
+function clearDate() {
+  lastStartDate = null;
+  lastEndDate = null;
+  usersGrid();
+  $("#clrDate").addClass("hidden");
+  $(".cancelBtn").trigger("click");
+}
+
+
+//////////////////////////////////////////////////////////////////////////////
+
+function addSelfUsersReport() {
+  bcSideMenuItem(
+    leftMenu,
+    "Kullanıcılar Raporu",
+    "fa-sharp fa-solid fa-users",
+    "usersReportInit();"
+  );
+}
